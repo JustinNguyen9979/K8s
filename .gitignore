@@ -1,5 +1,5 @@
 /create-single-master-cluster/.vagrant
 setup-load-balancer-for-kube-apiservers/.vagrant
 create-ha-cluster-keealived-VIP/.vagrant
-
 4-Ingress/tls
+4-Ingress\nginx-ingress
