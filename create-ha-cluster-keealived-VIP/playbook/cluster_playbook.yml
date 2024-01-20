@@ -2,8 +2,8 @@
 
 - hosts: masters, workers
   name: Setup masters and workers
-  remote_user: root
-  become: true
+  remote_user: ci
+  become: yes
   tasks:
     # https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/#before-you-begin
     - name: Disable swap
@@ -32,14 +32,14 @@
       shell: sysctl --system
 
     # https://docs.docker.com/engine/install/ubuntu/#installation-methods
-    # - name: Install packages to allow apt to use a repository over HTTPS
-    #   apt:
-    #     name:
-    #       - ca-certificates
-    #       - gnupg
-    #       - apt-transport-https
-    #     state: present
-    #     update_cache: yes
+    - name: Install packages to allow apt to use a repository over HTTPS
+      apt:
+        name:
+          - ca-certificates
+          - gnupg
+          - apt-transport-https
+        state: present
+        update_cache: yes
 
     - name: Add Docker’s official GPG key
       apt_key:
@@ -111,7 +111,7 @@
         name: "{{ ansible_user }}"
         groups: docker
         append: yes
-      become: true
+      become: yes
 
     - name: Add Google Cloud public signing key
       apt_key:
@@ -139,9 +139,9 @@
         enabled: yes
 
 - hosts: masters
-  name: Init cluster
-  remote_user: root
-  become: true
+  name: Init cluster and join masters
+  remote_user: ci
+  become: yes
   tasks:
     - name: Reset existing cluster
       shell: kubeadm reset -f
@@ -156,48 +156,48 @@
       shell: rm -rf /var/lib/etcd
 
     - name: Init kubernetes cluster
-      shell: kubeadm init --control-plane-endpoint=172.16.1.11:6443 --upload-certs --apiserver-advertise-address=172.16.1.11 --pod-network-cidr=10.2.0.0/16
+      shell: kubeadm init --control-plane-endpoint={{ cluster_vip }}:6443 --upload-certs --apiserver-advertise-address=172.16.1.11 --pod-network-cidr=10.244.0.0/16
+      run_once: yes
+      delegate_to: "172.16.1.11"
 
     # This got updated after the video
     # Use release 0.16.3, rather than master version!
     - name: Copy kube-flannel-v0.16.3.yml
       copy:
         src: ../kube-flannel-v0.16.3.yml
-        dest: /root/kube-flannel-v0.16.3.yml
-        owner: root
-        group: root
+        dest: /home/ci/kube-flannel-v0.16.3.yml
+        owner: ci
+        group: ci
         mode: '0644'
+      when: inventory_hostname == "172.16.1.11"
 
     - name: Deploy Flannel network
       shell: kubectl --kubeconfig=/etc/kubernetes/admin.conf apply -f kube-flannel-v0.16.3.yml
+      run_once: yes
+      delegate_to: "172.16.1.11"
 
     - name: Print join command
       shell: kubeadm token create --print-join-command
       register: kubernetes_join_command
+      run_once: yes
+      delegate_to: "172.16.1.11"
 
     - name: Copy join command to local
-      become: false
+      become: no
       local_action: copy content="{{ kubernetes_join_command.stdout_lines[0] }}" dest="/tmp/kubernetes_join_command" mode=0777
+      run_once: yes
+      delegate_to: "172.16.1.11"
 
-    - name: Create directory for kube config
-      file:
-        path: /root/.kube
-        state: directory
-        owner: root
-        group: root
-        mode: 0755
+    - name: Generate certificate key
+      shell: kubeadm init phase upload-certs --upload-certs
+      register: kubernetes_certificate_key
+      run_once: yes
+      delegate_to: "172.16.1.11"
 
-    - name: Copy /etc/kubernetes/admin.conf to user home directory
-      become_user: root
-      become_method: sudo
-      become: true
-      copy:
-        src: /etc/kubernetes/admin.conf
-        dest: /root/.kube/config
-        remote_src: yes
-        owner: root
-        group: root
-        mode: '0644'
+    - name: Execute master join command
+      become: yes
+      when: inventory_hostname != "172.16.1.11"
+      shell: "{{ kubernetes_join_command.stdout_lines[0] }} --control-plane --certificate-key {{ kubernetes_certificate_key.stdout_lines[2] }} --apiserver-advertise-address={{ inventory_hostname }}"
 
     # This got updated after the video
     # Because of https://github.com/kubernetes/kubernetes/issues/60835#issuecomment-395931644
@@ -213,10 +213,30 @@
         daemon-reload: yes
         state: restarted
 
+    - name: Create directory for kube config
+      file:
+        path: /home/ci/.kube
+        state: directory
+        owner: ci
+        group: ci
+        mode: 0755
+
+    - name: Copy /etc/kubernetes/admin.conf to user home directory
+      become_user: root
+      become_method: sudo
+      become: yes
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /home/ci/.kube/config
+        remote_src: yes
+        owner: ci
+        group: ci
+        mode: '0644'
+
 - hosts: workers
   name: Join workers
-  remote_user: root
-  become: true
+  remote_user: ci
+  become: yes
   tasks:
     - name: Reset existing cluster
       shell: kubeadm reset -f
