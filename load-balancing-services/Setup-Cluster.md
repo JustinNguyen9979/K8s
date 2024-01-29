@@ -26,7 +26,7 @@ Before you want to try this on your local, here are requirements
 
 ## Provision VMs
 ```
-cd create-ha-cluster
+cd load-balancing-service
 vagrant up
 ```
 
