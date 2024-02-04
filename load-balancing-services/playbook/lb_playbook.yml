@@ -47,7 +47,7 @@
           mode tcp
           balance roundrobin
             server k8s-worker-1 172.16.2.11:30100 check send-proxy-v2
-            # server k8s-worker-2 172.16.2.12:30100 check send-proxy-v2
+            server k8s-worker-2 172.16.2.12:30100 check send-proxy-v2
             # server k8s-worker-3 172.16.2.13:30100 check send-proxy-v2
 
         frontend https_frontend
@@ -60,7 +60,7 @@
           mode tcp
           balance roundrobin
             server k8s-worker-1 172.16.2.11:30101 check send-proxy-v2
-            # server k8s-worker-2 172.16.2.12:30101 check send-proxy-v2
+            server k8s-worker-2 172.16.2.12:30101 check send-proxy-v2
             # server k8s-worker-3 172.16.2.13:30101 check send-proxy-v2
 
         EOF

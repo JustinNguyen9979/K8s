@@ -1,7 +1,7 @@
 Vagrant.configure("2") do |config|
 
     # Load Balancer Nodes
-    LoadBalancerCount = 2
+    LoadBalancerCount = 1
     (1..LoadBalancerCount).each do |i|
         config.vm.define "k8s-lb-#{i}" do |lb|
             lb.vm.box = "generic/ubuntu2004"
@@ -35,7 +35,7 @@ Vagrant.configure("2") do |config|
     end
 
     # Worker Nodes
-    WorkerCount = 1
+    WorkerCount = 2
     (1..WorkerCount).each do |i|
         config.vm.define "worker-#{i}" do |worker|
             worker.vm.box = "generic/ubuntu2004"
